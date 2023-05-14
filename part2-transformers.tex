@@ -1,0 +1,212 @@
+\section*{\large Transformers}
+
+\section{Transformer-based language models}
+
+Transformer-based models are characteristic for using self-attention, which solves several bottlenecks in other models processing longer sequences of words/tokens. Unlike pure recurrent neural networks without self-attention mechanisms, self-attention heads in transformers allow the inference of the representation of input sequence tokens to focus on various other tokens of the input sequence equally. Without attention, the information from neighbouring tokens would vanish more easily with increasing distance between the tokens. Overall, this allows the representation of each token to be highly contextualised in the token sequence (such as a sentence), also if important relationships between input sequence tokens involve words that are far apart.
+
+Some important architectural differences, which determine the number of parameters, are the following:
+\begin{itemize}
+    \item Training objectives. Language models differ in their objective functions, which determine the kind of tasks they would perform well.
+    \item Building blocks in the model's architecture, such as self-attention heads, uni- or bi-directional long short-term memory units, gated recurrent units, etc.
+    \item Size of the model, including number of hidden layers, number of connections between layers, sizes of embedding, sizes of hidden states of recurrent units, and the like.
+    \item Training data and where they come from.
+\end{itemize}
+Below, we briefly compare the three models BERT, RoBERTa and GPT.
+
+BERT and RoBERTa are similar models in that both are usually used in downstream tasks such as classification, language inference, question answering, and similar, with RoBERTa being a refined BERT model trained on a larger corpus. On the other hand, GPT is a generative model with the purpose of generating larger amounts of text.
+
+BERT-based models are usually trained with masked language modelling and next-sentence prediction.
+\begin{itemize}
+    \item Masked language modelling means that the model is trained to correctly guess masked words from their context in both directions. Using a bidirectional transformer, the model can base the prediction of a masked token also on future tokens in the sequence.
+    \item Next sequence prediction -- for a pair of sentences, the model learns to predict whether the sentences are consecutive.
+\end{itemize}
+In contrast to this, GPT models are trained to predict the next word in a sequence. Given a large corpus of human-generated text, training objectives are generated such that the model is given some prefix of a token sequence and trained to predict the next word of the sentence. The model uses a unidirectional transformer and so cannot make use of future tokens in the sentence for the prediction of the target token.
+
+\section{Scalability}
+
+Embedding-based models usually work on the word level and have a fixed embedding vector for each word. The embedding vectors are calculated during a much simpler training procedure, have a smaller number of parameters, and require smaller corpora.
+As opposed to word embedding methods, transformer-based language models can produce contextualised embedding vectors for each input token which may lead to higher performance for a given task, but that entails much larger model sizes. Due to increased model complexity, transformer-based models require more computation resources and larger training datasets.
+
+As for the trade-offs, embedding-based models can be more suitable for applications that require faster prediction, smaller memory usage, or lower computation resources. However, transformer-based models, if they can be afforded in terms of computation resources and available corpora, usually perform better.
+
+\section{Code}
+
+We chose to use the \texttt{distilbert-base-uncased-finetuned-sst-2-english} model which is a lightweight version of the BERT model with fewer parameters (only 6 hidden layers). Further, the model is fine-tuned for sentiment classification, so it should perform well even without much training.
+
+However, our task is different from the usual sentiment analysis: we need two outputs, one for positive and one for negative sentiment variable. This will require at least some training, since we are constructing new layers with a different number of parameters than the standard model.
+
+Further, we chose to model this as a regression problem, even though the reported metric will be the classification metric \textit{Weighted-F1 HM}. Therefore we use the \textit{MSE} loss for both sentiment variables, adding the loss values together, to optimise the regression.
+
+First, as shown in \cref{listing:p2t-regression-model}, we create a new class \texttt{TFDistilBertForSentiStrengthRegression}, subclassing from \texttt{TFDistilBertForSequenceClassification}. Our code, as opposed to its super class, modifies the last two layers. We use the following last layers:
+\begin{itemize}
+    \item A hidden layer with the size of 768 (the default hidden state size for distilbert) with the ReLU activation function, similar to previous hidden layers of the model. This layer takes as input the embedding corresponding to the \texttt{[CLS]} token, i.e. the embedding that is trained to capture the sentiment of the whole sentence. This is done in the same way as the \texttt{TFDistilBertForSequenceClassification} model.
+    \item An output layer with two outputs, one for each sentiment variable. Since we are modelling the problem as regression directly of the given values, we apply no activation function on the two output neurons (i.e. \textit{linear}).
+\end{itemize}
+
+Further, in \cref{listing:p2t-build-model} we demonstrate how to build the model, with a custom number of layers that are set as trainable. The included \texttt{build\_model} function does the following:
+\begin{itemize}
+    \item Initialize the \texttt{TFDistilBertForSentiStrengthRegression}
+    \item Based on the provided argument, the function iterates through the layers of the pre-trained model and sets them as trainable respectively. By default, none of the pre-trained layers will be set as trainable.
+    \item Compiles the model with the Adam optimizer, using the \texttt{mse\_sum} loss function that adds the MSE loss value of the two sentiment variables.
+\end{itemize}
+In \cref{listing:p2t-build-model-call} we show how to call the \texttt{build\_model} function to construct the model once with fixed pre-trained layers, and once with the last pre-trained layer to be fine-tuned, too.
+
+Finally, in \cref{listing:p2t-model-train} we show how to train the model.
+
+\begin{listing*}
+\caption{A code snipped showing our implementation of \texttt{TFDistilBertForSentiStrengthRegression}.}
+\begin{minted}{python}
+from transformers import TFDistilBertMainLayer
+from transformers.modeling_tf_utils import get_initializer, unpack_inputs, TFModelInputType
+from transformers.utils.generic import ModelOutput
+from typing import Optional, Union, Tuple
+from dataclasses import dataclass
+
+@dataclass
+class TFSentiStrengthRegressionOutput(ModelOutput):
+    loss: Optional[tf.Tensor] = None
+    values: Optional[tf.Tensor] = None
+    hidden_states: Optional[Tuple[tf.Tensor]] = None
+    attentions: Optional[Tuple[tf.Tensor]] = None
+
+class TFDistilBertForSentiStrengthRegression(TFDistilBertForSequenceClassification):
+    def __init__(self, config, *inputs, **kwargs):
+        super(TFDistilBertForSequenceClassification, self).__init__(config, *inputs, **kwargs)
+
+        self.distilbert = TFDistilBertMainLayer(config, name="distilbert")
+        self.pre_regression = tf.keras.layers.Dense(
+            config.dim,
+            kernel_initializer=get_initializer(config.initializer_range),
+            activation="relu",
+            name="pre_regression",
+        )
+        self.regression = tf.keras.layers.Dense(
+            units=2, kernel_initializer=get_initializer(config.initializer_range), name="regression",
+            activation='linear'
+        )
+        self.dropout = tf.keras.layers.Dropout(config.seq_classif_dropout)
+
+    @unpack_inputs
+    def call(
+            self,
+            input_ids: Optional[TFModelInputType] = None,
+            attention_mask: Optional[Union[np.ndarray, tf.Tensor]] = None,
+            head_mask: Optional[Union[np.ndarray, tf.Tensor]] = None,
+            inputs_embeds: Optional[Union[np.ndarray, tf.Tensor]] = None,
+            output_attentions: Optional[bool] = None,
+            output_hidden_states: Optional[bool] = None,
+            return_dict: Optional[bool] = None,
+            labels: Optional[Union[np.ndarray, tf.Tensor]] = None,
+            training: Optional[bool] = False,
+    ) -> Union[TFSentiStrengthRegressionOutput, Tuple[tf.Tensor]]:
+        distilbert_output = self.distilbert(
+            input_ids=input_ids,
+            attention_mask=attention_mask,
+            head_mask=head_mask,
+            inputs_embeds=inputs_embeds,
+            output_attentions=output_attentions,
+            output_hidden_states=output_hidden_states,
+            return_dict=return_dict,
+            training=training,
+        )
+        hidden_state = distilbert_output[0]  # (bs, seq_len, dim)
+        pooled_output = hidden_state[:, 0]  # (bs, dim)
+        pooled_output = self.pre_regression(pooled_output)  # (bs, dim)
+        pooled_output = self.dropout(pooled_output, training=training)  # (bs, dim)
+        values = self.regression(pooled_output)  # (bs, dim)
+
+        loss_fn = tf.keras.losses.MeanSquaredError(reduction=tf.keras.losses.Reduction.NONE)
+        loss = None if labels is None else loss_fn(labels, values)
+
+        if not return_dict:
+            output = (values,) + distilbert_output[1:]
+            return ((loss,) + output) if loss is not None else output
+
+        return TFSentiStrengthRegressionOutput(
+            loss=loss,
+            values=values,
+            hidden_states=distilbert_output.hidden_states,
+            attentions=distilbert_output.attentions,
+        )
+\end{minted}
+\label{listing:p2t-regression-model}
+\end{listing*}
+
+\begin{listing*}
+\caption{A code snipped showing how to build and compile the tensorflow model.}
+\begin{minted}{python}
+def build_model(trainable_last_layers=0):
+    custom_bert = TFDistilBertForSentiStrengthRegression.from_pretrained(MODEL_NAME)
+    if trainable_last_layers > 0:
+        custom_bert.distilbert.trainable = True
+        custom_bert.distilbert.embeddings.trainable = False
+        for layer in custom_bert.distilbert.transformer.layer[0:-trainable_last_layers]:
+            layer.trainable = False
+    else:
+        custom_bert.distilbert.trainable = False
+
+    input_ids = tf.keras.layers.Input(shape=(None,), dtype=tf.int32, name="input_ids")
+    outputs = custom_bert(input_ids).values
+
+    model = tf.keras.models.Model(
+        inputs=[input_ids],
+        outputs=[outputs],
+        name=MODEL_NAME_SHORT,)
+
+    def mse_sum(y_true, y_pred):
+        return tf.keras.metrics.mean_squared_error(y_true[0], y_pred[0]) + tf.keras.metrics.mean_squared_error(y_true[1], y_pred[1])
+    def mae_sum(y_true, y_pred):
+        return tf.keras.metrics.mean_absolute_error(y_true[0], y_pred[0]) + tf.keras.metrics.mean_absolute_error(y_true[1], y_pred[1])
+    def mae_pos(y_true, y_pred):
+        return tf.keras.metrics.mean_absolute_error(y_true[0], y_pred[0])
+    def mae_neg(y_true, y_pred):
+        return tf.keras.metrics.mean_absolute_error(y_true[1], y_pred[1])
+
+    model.compile(
+        optimizer=tf.keras.optimizers.Adam(learning_rate=1e-3),
+        loss=mse_sum,
+        metrics=[mae_sum, mae_pos, mae_neg],)
+    return model
+\end{minted}
+\label{listing:p2t-build-model}
+\end{listing*}
+
+\begin{listing*}
+\caption{A code snipped showing how to call the \texttt{build\_model} function.}
+\begin{minted}{python}
+# DistilBERT with fixed pre-trained layers, only set to train the added regression layers
+model_fixed = build_model(trainable_last_layers=0)
+# DistilBERT also allowing the last pre-trained layer to be fine-tuned
+model_refined1 = build_model(trainable_last_layers=1)
+\end{minted}
+\label{listing:p2t-build-model-call}
+\end{listing*}
+
+\begin{listing*}
+\caption{A code snipped showing how to train the model.}
+\begin{minted}{python}
+def train_model(name, model, epochs=10, train_data=train_data, val_data=val_data):
+    # Create callbacks
+    metrics = ... # A callback that calculates our metrics (including val_f1w_hm) on the validation dataset
+    model_checkpoint_callback = ... # Save the model after every epoch
+    tensorboard_callback = ...
+
+    history = model.fit(
+        x=train_data,
+        validation_data=val_data,
+        epochs=epochs,
+        callbacks=[
+            ...
+        ],
+    )
+    return history
+
+history_fixed = train_model('fixed', model_fixed, epochs=8)
+\end{minted}
+\label{listing:p2t-model-train}
+\end{listing*}
+
+
+\section{Performance analysis}
+
+As per \cref{listing:p2t-model-train}, we trained the two models (fixed, and with last 

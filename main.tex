@@ -1,0 +1,99 @@
+\documentclass[journal,10pt,onecolumn,compsocconf,]{IEEEtran}
+%\documentclass[10pt,conference,compsocconf]{IEEEtran}
+
+\usepackage[
+backend=biber,
+%style=alphabetic,
+%sorting=ynt
+]{biblatex}
+
+\usepackage{float}
+\usepackage{url}
+\usepackage{graphicx}	% For figure environment
+\usepackage{booktabs}
+\usepackage{amsmath}
+
+\usepackage{subcaption}
+\usepackage{hyperref}
+\usepackage{pdfpages}
+\usepackage{enumerate}
+\usepackage{subcaption}
+\usepackage{cleveref}
+\usepackage[newfloat]{minted}
+\usepackage{stfloats}
+\usepackage{cuted}
+
+\captionsetup[listing]{position=top}
+
+\clubpenalty=-100
+%\windowpenalty=-100
+\displaywidowpenalty=-100 
+\linepenalty=5000
+\clubpenalty=10000
+\widowpenalty=10000
+\displaywidowpenalty=10000
+
+\renewcommand\thesection{Q\arabic{section}}
+
+\addbibresource{ML4Healthcare.bib}
+\defbibheading{references}{\section*{\large References}}
+
+\setminted{%
+breaklines,
+frame=lines,
+framesep=2mm,
+fontsize=\footnotesize,
+%mathescape,
+linenos,
+numbersep=5pt,
+%frame=single,
+numbersep=5pt,
+xleftmargin=0pt,
+}
+
+
+\title{AI for Global Health using Natural Language Processing \\
+\normalsize Project 2 for the Machine Learning for Health Care course (261-5120-00L) \\ \vspace*{20pt}
+May 2023
+}
+
+\author{
+  Sofie Daniëls, Aishwarya Melatur, Juraj Micko\\
+  Group: 3 \\
+  Department of Computer Science, ETH Zurich, Switzerland
+}
+
+\begin{document}
+\pagenumbering{arabic}
+\maketitle
+\thispagestyle{plain}
+\pagestyle{plain}
+
+
+
+%\begin{abstract}
+%  abc
+%\end{abstract}
+
+\section*{\large Part 1: Data exploration and pre-processing}
+\input{part1}
+\clearpage 
+\section*{\large Part 2: NLP learning based methods}
+\input{part2-vader}
+\clearpage 
+\input{part2-embeddings}
+\clearpage 
+\input{part2-transformers}
+\clearpage 
+\section*{\large Part 3: Downstream Global Health Analysis}
+\input{part3}
+\clearpage 
+\section*{\large Bonus: Topic \& Emotion Analysis}
+\input{part-bonus}
+
+\clearpage
+
+%\printbibliography
+\printbibliography[heading=references]
+
+\end{document}
