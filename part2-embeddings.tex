@@ -1,9 +1,7 @@
-\section*{Word Embeddings (20 pts)}
+\section*{\large Word Embeddings}
 
 
-\subsection*{Q1: Bag of Words (BoW) (2 pts)}
-\textit{Implement a Bag of Words embedding approach to create embeddings of the TweetsCOV19 dataset. Explain the methodology and provide a code snippet of the function used to produce these embeddings.}
-
+\section*{Q1: Bag of Words (BoW)}
 Applying Bag of Words (BoW) \cite{bow} to tokens is the exact same as one-hot encoding of tokens.  We implemented our version of BoW using 'CountVectorizer' from scikit-klearn \cite{sklearn1, sklearn2}, as can be seen in Code Snippet \ref{listing:p2-bow}. To keep our implementation low in memory consumption, we choose to work with a vocabulary of size 250, which limits our token vectors to a size of 250.
 
 \begin{listing*}
@@ -17,9 +15,7 @@ bow_matrix = vectorizer.fit_transform(df_tweets_preprocessed['unigram'].apply(" 
 \end{listing*}
 
 
-\subsection*{Q2: TF-IDF (2 pts)}
-\textit{Implement a TF-IDF \cite{tfidf} embedding approach to create embeddings of the TweetsCOV19 dataset. Explain the methodology and provide a code snippet of the function used to produce these embeddings.}
-
+\section*{Q2: TF-IDF}
 Similar to BoW, using term frequency–inverse document frequency (TF-IDF) \cite{tfidf} results in an embedding vector that has the same size as the vocabulary.  Instead of one-hot encoding, the entry of a word in a vector is directly related to its frequency in that tweet, and inversely related to the commonality of that word in general (i.e. the occurrence of that word in all tweets).  In Code Snippet \ref{listing:p2-tfidf}, we apply TfidfTransformer from scikit-learn \cite{sklearn1, sklearn2} to the BoW matrix we obtained in the previous question.
 
 \begin{listing*}
@@ -32,9 +28,7 @@ bow_matrix_tfidf = transformer.fit_transform(bow_matrix)
 \label{listing:p2-tfidf}
 \end{listing*}
 
-\subsection*{Q3: Word2Vec with CBOW or Skip-gram (2 pts)}
-\textit{Implement a Word2Vec pre-trained embedding approach to create embeddings of the TweetsCOV19 dataset. Motivate your choice between CBOW or Skip-gram. Explain the methodology and provide a code snippet of the function used to produce these embeddings.}
-
+\section*{Q3: Word2Vec with CBOW or Skip-gram}
 Continuous Bag of Words (CBOW) \cite{cbowsgram} is a word embedding model that predicts a word by looking at the context (i.e. the surrounding words). Skip-gram \cite{cbowsgram}, on the other hand, does the opposite: it predicts the context of a word, by looking at the word itself. In general, Skip-gram is used more often, but CBOW is much faster, which makes sense, since you only predict a single word for the latter. Since we would like for our model to take context into account, we opt to use Skip-gram. Still, we will compare this with the performance of CBOW later on in question 8 and 9. For computational reasons (related to Q8), we limit the vector size of a token to 20 and therefore train the model from scratch instead of using a pre-trained model. In addition, we choose a context window of 3. We use the same vector and context window size for all subsequent models. The code for the respective functions can be found in Code Snippets \ref{listing:p2-cbow} and \ref{listing:p2-sgram}, and was written using functions from Gensim \cite{gensim}.
 
 \begin{listing*}
@@ -79,8 +73,7 @@ model_sgram.train(df_tweets_preprocessed['unigram'], epochs=15, total_examples=m
 \end{listing*}
 
 
-\subsection*{Q4: GloVe (2 pts)}
-\textit{Implement a GloVe pre-trained embedding approach to create embeddings of the TweetsCOV19 dataset. Explain the methodology and provide a code snippet of the function used to produce these embeddings.}
+\section*{Q4: GloVe}
 \begin{listing*}
 \begin{minted}{python}
 ! pip install glove-python-binary
@@ -117,11 +110,7 @@ model_glove_gensim = KeyedVectors.load_word2vec_format("word_embedding/gensim_gl
 GloVe \cite{glove} is an embedding method that counts how often a word occurs in a certain context. It combines these findings into a so-called co-occurrence matrix, which is then approximated by a lower-dimensional matrix to limit the vector size of the embeddings.
 We use the library 'glove-python-binary' for our code \cite{glovegit}, as can be seen in Code Snippet \ref{listing:p2-glove}.
 
-\subsection*{Q5: FastText (2 pts)}
-\textit{Implement a FastText pre-trained embedding approach to create embedding of the TweetsCOV19 dataset. Explain the methodology and provide a code
-snippet of the function used to produce these embeddings.}
-
-
+\section*{Q5: FastText}
 \begin{listing*}
 \begin{minted}{python}
 from gensim.models import FastText
@@ -139,9 +128,7 @@ model_ft.save("word_embedding/fasttext.model")
 Different from the previous embedding methods, FastText \cite{fasttext} uses n-grams as input for training to ensure that uncommon and unseen words can still be embedded. Previous methods try to find a unique embedding for each word, but since FastText cares about the morphological similarity of words through n-grams, it can handle out-of-vocabulary (OOV) words. Training follows a similar fashion to the word2vec models mentioned earlier \cite{cbowsgram}.
 The code can be found in Code Snippet \ref{listing:p2-fasttext}
 
-\subsection*{Q6: Visualization of embeddings (2 pts)}
-\textit{Perform a qualitative comparison of the quality of the semantic content of each embedding approach. For example, visualize the location using dimensionality reduction techniques (e.g., PCA, t-SNE, UMAP), of negative/positive samples, or tweets containing specific words, in the latent space. Compare your visualization of each method and explain whether you can anticipate any differences in downstream performance as a result. \cite{tsne, umap}}
-
+\section*{Q6: Visualization of embeddings}
 We visualize our word embeddings both by the positive/negative score of tokens, but also by the keywords used for filtering the tweets.
 
 For the first method, we us a list of over 1400 positive and negative words from \cite{AFINN}, each with a rank, and map their embeddings into the latent space. We hope to see that all of the previously implemented embedding methods allow us to easily discern words with a positive meaning from words with a negative meaning.
@@ -149,7 +136,9 @@ For the first method, we us a list of over 1400 positive and negative words from
 For the second method, we use the keywords used for filtering the TweetCov19 dataset \cite{tweetsdataset}, and again map the embeddings into the latent space. This time, we hope to see similar words clustered or located close to one another, and words with completely different meanings further away from each other.
 
 Note that we only use keywords and positive/negative words that are in the vocabulary of the trained embedding model. This means that for both our BoW and TF-IDF model, most words are filtered out (since the entire vocabulary only has size 250), as you can see in Figure \ref{fig:bow_viz} and \ref{fig:tfidf_viz}. This will impede our downstream classifiers in finding the correct sentiment scores, but instead greatly speeds up training, since the feature size is significantly reduced.
-
+Furthermore, dimensionality reduction and clustering of one-hot encoded vectors from BoW proves to be difficult, and visualizations do not give much additional information, as most words are distributed evenly throughout the space.
+Interestingly, the PCA visualization for TF-IDF embedding of keywords shows strong similarity with those of the BoW embeddings (see Figure \ref{fig:tfidf_key} and \ref{fig:bow_key}), which reveals that the keywords present in the vocabulary likely have similar term frequencies.
+ 
 \begin{figure}
  \centering
  \begin{subfigure}{\columnwidth}
@@ -259,14 +248,12 @@ Embeddings with GloVe, Skip-grams, and CBOW seem to capture more subtle relation
 Application of PCA on the embedding with CBOW, Skip-grams, and FastText seems to show a reasonable separation of positive and negative words, although the t-SNE and UMAP visualizations do not noticeably confirm this finding (see Figure \ref{fig:cbow_posneg}, \ref{fig:ft_posneg}, and \ref{fig:sgram_posneg}). GloVe embedding, on the other hand, seems to not be easily separable in two dimensions after application of PCA, but shows similar results for t-SNE and UMAP, as can be seen in Figure \ref{fig:glove_posneg}.
 In general, we can see that most of embedding models are able to pick up on the sentiments of certain words, but not on the relative weights of that sentiment. Therefore, it might be difficult for our downstream classifiers to pick up on these nuances, and especially so when using GloVe embeddings.
 
-\subsection*{Q7: Tweet embeddings (2 pts)}
-\textit{Propose three different approaches to combine word embeddings into an embedding for each tweet. Provide a code snippet for each function. How do all of the above methods deal with out-of-vocabulary words?}
-
+\section*{Q7: Tweet embeddings}
 For this question, we compare summing, averaging, and concatenation of the minimum and maximum of the word embeddings.
 
-Our 'summing' method simply consists of summing up the embeddings of every word in the tweet. If a word cannot be found in the vocabulary, we do not include it in the sum (this is done because we limited vocabulary size in some of our methods for computational reasons).
+Our \textbf{'summing' method} simply consists of summing up the embeddings of every word in the tweet. If a word cannot be found in the vocabulary, we do not include it in the sum (this is done because we limited vocabulary size in some of our methods for computational reasons).
 
-The 'averaging' method uses the results from the first 'summing' method, but divides it by the number of valid (i.e. not OOV) words found in the tweet.
+The \textbf{'averaging' method} uses the results from the first 'summing' method, but divides it by the number of valid (i.e. not OOV) words found in the tweet.
 
 The code for the first two methods can be found in Code Snippet \ref{listing:p2-sumav}.
 
@@ -304,7 +291,7 @@ def av_sum_sentence_bow(row, vectorizer, transformer=None, av=True):
 \label{listing:p2-sumav}
 \end{listing*}
 
-Finally, we designed a 'minmax' method, where we find the respective minimum and maximum values (per index) of all word embeddings and concatenate the results. Again, as can be seen in Code Snippet \ref{listing:p2-minmax}, if a word is OOV, we simply ignore it.
+Finally, we designed a \textbf{'minmax' method}, where we find the respective minimum and maximum values (per index) of all word embeddings and concatenate the results. Again, as can be seen in Code Snippet \ref{listing:p2-minmax}, if a word is OOV, we simply ignore it.
 
 \begin{listing*}
 \begin{minted}{python}
@@ -341,10 +328,8 @@ def minmax_sentence_bow(row, vectorizer, vocab_size, transformer=None):
 \end{listing*}
 
 
-\subsection*{Q8: Classifier (3 pts)}
-\textit{Implement three downstream classifiers to perform sentiment analysis of your tweets (i.e., predict both the positive (1 to 5) and negative (-1 to -5) sentiment score for each tweet). For each classifier, briefly explain how it works and make sure to tune hyper-parameters appropriately. Provide a results table showcasing the performance of all tested classifiers for each embeddings approach you implemented in Q1-5, and each aggregation method in Q7. For each family of classifiers tested provide a code snippet.}
-
-Instead of classifiers, we implement three regression models to perform sentiment analysis of the tweets, since the labels 'positive sentiment score' and 'negative sentiment score' are ordered discrete values. We compare our results using the mean harmonic F1 score (i.e. the mean of the harmonic F1 score for positive and negative sentiments respectively).
+\section*{Q8: Classifier}
+Instead of classifiers, we implement \textbf{three regression models} to perform sentiment analysis of the tweets, since the labels 'positive sentiment score' and 'negative sentiment score' are ordered discrete values. We compare our results using the \textbf{mean harmonic F1 score} (i.e. the mean of the harmonic F1 score for positive and negative sentiments respectively).
 
 Before calculating the harmonic F1 score, we round the regression output to the nearest integer, and then clip all values outside of the sentiment score range (1 to 5 for positive sentiments, and -5 to -1 for negative sentiments), to ensure consistency with classifier outputs. This details of this preprocessing step can be found in Code Snippet \ref{listing:f1}
 
@@ -370,7 +355,7 @@ weighted_harmonic_f1_scorer = make_scorer(weighted_harmonic_f1_score)
 
 All hyperparameter tuning was performed using GridSearchCV from the scikit-learn library \cite{sklearn1, sklearn2}. Still, to speed up training, we tune the models with limited parameters and train on only two folds.
 
-For our first 'classifier', we use Random Forests \cite{randomforest}. Random Forests is a model that combines the results of multiple decision trees, returning the most likely class for classification, or the mean prediction for regression. The code can be found in Code Snippet \ref{listing:p2-randomforest}.
+For our first 'classifier', we use \textbf{Random Forests} \cite{randomforest}. Random Forests is a model that combines the results of multiple decision trees, returning the most likely class for classification, or the mean prediction for regression. The code can be found in Code Snippet \ref{listing:p2-randomforest}.
 
 \begin{listing*}
 \begin{minted}{python}
@@ -395,7 +380,7 @@ def rand_forest(sentence, sentence_test):
 \label{listing:p2-randomforest}
 \end{listing*}
 
-For the second 'classifier', we use GradientBoosting \cite{gradboost1, gradboost2, gradboost3}. Gradient boosting is a method that combines weak models to create a strong predictive model. It does so by iteratively improving upon the loss from the weak model of the previous round.
+For the second 'classifier', we use \textbf{GradientBoosting} \cite{gradboost1, gradboost2, gradboost3}. Gradient boosting is a method that combines weak models to create a strong predictive model. It does so by iteratively improving upon the loss from the weak model of the previous round.
 We again use a method from scikit-learn \cite{sklearn1, sklearn2}, as you can see in \ref{listing:p2-gradboost}.
 
 \begin{listing*}
@@ -415,7 +400,7 @@ def grad_reg(sentence, sentence_test):
 \label{listing:p2-gradboost}
 \end{listing*}
 
-Finally, for our third 'classifier', we implemented AdaBoost \cite{adaboost} in Code Snippet \ref{listing:p2-adaboost}. Adaptive boosting is an iterative training method that in every iteration adjusts the weights of  the data points that were predicted badly in the previous iteration. The final output is the weighted average of all previous models, the weights depending on their overall performance.
+Finally, for our third 'classifier', we implemented \textbf{AdaBoost} \cite{adaboost} in Code Snippet \ref{listing:p2-adaboost}. Adaptive boosting is an iterative training method that in every iteration adjusts the weights of  the data points that were predicted badly in the previous iteration. The final output is the weighted average of all previous models, the weights depending on their overall performance.
 
 \begin{listing*}
 \begin{minted}{python}
@@ -436,10 +421,8 @@ def ada_reg(sentence, sentence_test):
 
 The train and test scores of the classifiers for each word embedding model and aggregation method can be found in Table \ref{table:score}. 
 
-\subsection*{Q9: Performance comparison (3 pts)}
-\textit{Using the summary table computed in Q8, compare the performance of all methods on the sentiment analysis task using the TweetsCOV19 dataset. Also compare methods from a computational point of view. What embedding model, aggregation method and classifier would you select among all approaches? Give potential extensions that could help improve your performance.}
-
-\begin{table}[]
+\section*{Q9: Performance comparison}
+\begin{table}
 \resizebox{\textwidth}{!}{%
 \begin{tabular}{|l|lll|l|l|lll|}
 \cline{1-4} \cline{6-9}
@@ -468,7 +451,7 @@ TF-IDF minmax & 0.32 & 0.65 & 0.48 &  & TF-IDF minmax & 0.32 & 0.65 & 0.48 \\ \c
 \label{table:score}
 \end{table}
 
-\begin{table}[]
+\begin{table}
 \centering
 \begin{tabular}{|l|lll|}
 \hline
@@ -545,7 +528,7 @@ Somewhat suprising is the good results that were obtained using the simplest emb
         \caption{Confusion matrix for the Gradient Boosting 'classifier' trained on FastText embeddings that were aggregated by summing.}    
         \label{fig:grad_boost_sum_ft}
     \end{subfigure}
-    \caption{Confusion matrices of six models trained with the Gradient Boosting algorithm. The models were selected based on a cutoff of $\ge 0.54$ for the training score (weighted harmonic F1 score).} 
+    \caption{Confusion matrices of six models trained with the Gradient Boosting algorithm. The models were selected based on a cutoff of $\ge 0.54$ for the training score (weighted harmonic F1 score). The confusion matrix was constructed with the test set.} 
     \label{fig:confusion_gensim}
 \end{figure*}
 
@@ -593,7 +576,7 @@ Somewhat suprising is the good results that were obtained using the simplest emb
         \caption{Confusion matrix for the Gradient Boosting 'classifier' trained on TF-IDF-embeddings that were aggregated by concatenating the minimum and maximum over all word embeddings.}
         \label{fig:grad_boost_mm_tfidf}
     \end{subfigure}
-    \caption{Confusion matrices of six models trained with the Gradient Boosting algorithm. The models were selected based on a cutoff of $\ge 0.54$ for the training score (weighted harmonic F1 score).} 
+    \caption{Confusion matrices of six models trained with the Gradient Boosting algorithm. The models were selected based on a cutoff of $\ge 0.54$ for the training score (weighted harmonic F1 score). The confusion matrix was constructed with the test set.} 
     \label{fig:confusion_sklearn}
 \end{figure*}
 

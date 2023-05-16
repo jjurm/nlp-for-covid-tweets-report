@@ -1,4 +1,19 @@
-\section*{\large Transformers}
+\section*{\large Transformers}\label{sec:transformers}
+\setcounter{section}{0}
+
+For the section below, we split the dataset into three parts (training, validation, test). Due to constraints on computational resources especially with transformer-based models, we only consider $15\%$ of each of the splits. Detailed proportions and dataset sizes are shown in \cref{tab:p2t-dataset-splits}.
+
+\begin{table}
+\centering
+\begin{tabular}{l|l|l|l|}
+ & \textbf{split (\%)} & \textbf{\# of samples} & \textbf{15\% of the samples} \\ \hline
+\textbf{Train} & 66\% * 95\% = 63\% & 246,397 & 36,960 \\ \hline
+\textbf{Validation} & 66\% * 5\% = 3\% & 12,968 & 1,945 \\ \hline
+\textbf{Test} & 33\% & 128,585 & 19,288 \\ \hline
+\end{tabular}
+\caption{Proportions of dataset splits and their sizes used in transformer-based models.}
+\label{tab:p2t-dataset-splits}
+\end{table}
 
 \section{Transformer-based language models}
 
@@ -49,9 +64,8 @@ Further, in \cref{listing:p2t-build-model} we demonstrate how to build the model
     \item Based on the provided argument, the function iterates through the layers of the pre-trained model and sets them as trainable respectively. By default, none of the pre-trained layers will be set as trainable.
     \item Compiles the model with the Adam optimizer, using the \texttt{mse\_sum} loss function that adds the MSE loss value of the two sentiment variables.
 \end{itemize}
-In \cref{listing:p2t-build-model-call} we show how to call the \texttt{build\_model} function to construct the model once with fixed pre-trained layers, and once with the last pre-trained layer to be fine-tuned, too.
-
-Finally, in \cref{listing:p2t-model-train} we show how to train the model.
+In \cref{listing:p2t-build-model-call} we show how to call the \texttt{build\_model} function to construct the model with different sets of layers set to be fine-tuned.
+Finally, in \cref{listing:p2t-model-train} we show how to train the models.
 
 \begin{listing*}
 \caption{A code snipped showing our implementation of \texttt{TFDistilBertForSentiStrengthRegression}.}
@@ -135,13 +149,19 @@ class TFDistilBertForSentiStrengthRegression(TFDistilBertForSequenceClassificati
 \begin{listing*}
 \caption{A code snipped showing how to build and compile the tensorflow model.}
 \begin{minted}{python}
-def build_model(trainable_last_layers=0):
+def build_model(trainable_last_layers=0, trainable_last_layers_set=[]):
     custom_bert = TFDistilBertForSentiStrengthRegression.from_pretrained(MODEL_NAME)
-    if trainable_last_layers > 0:
+    if trainable_last_layers > 0 or len(trainable_last_layers_set) > 0:
         custom_bert.distilbert.trainable = True
         custom_bert.distilbert.embeddings.trainable = False
-        for layer in custom_bert.distilbert.transformer.layer[0:-trainable_last_layers]:
-            layer.trainable = False
+        if len(trainable_last_layers_set) > 0:
+            for layer in custom_bert.distilbert.transformer.layer:
+                layer.trainable = False
+            for layer in trainable_last_layers_set:
+                custom_bert.distilbert.transformer.layer[layer].trainable = True
+        else:
+            for layer in custom_bert.distilbert.transformer.layer[0:-trainable_last_layers]:
+                layer.trainable = False
     else:
         custom_bert.distilbert.trainable = False
 
@@ -175,9 +195,11 @@ def build_model(trainable_last_layers=0):
 \caption{A code snipped showing how to call the \texttt{build\_model} function.}
 \begin{minted}{python}
 # DistilBERT with fixed pre-trained layers, only set to train the added regression layers
-model_fixed = build_model(trainable_last_layers=0)
+model_fixed = build_model(trainable_last_layers_set=[])
 # DistilBERT also allowing the last pre-trained layer to be fine-tuned
-model_refined1 = build_model(trainable_last_layers=1)
+model_refined1 = build_model(trainable_last_layers_set=[5])
+# DistilBERT allowing the first (bottom) pre-trained layer to be fine-tuned
+model_bottom1 = build_model(trainable_last_layers_set=[0])
 \end{minted}
 \label{listing:p2t-build-model-call}
 \end{listing*}
@@ -207,6 +229,186 @@ history_fixed = train_model('fixed', model_fixed, epochs=8)
 \end{listing*}
 
 
-\section{Performance analysis}
+\section*{Q4, Q5: Performance analysis, Transfer learning details}
 
-As per \cref{listing:p2t-model-train}, we trained the two models (fixed, and with last 
+As per \cref{listing:p2t-model-train}, we trained the three models (one fixed, one with the last layer trainable, and one with the first (bottom) layer trainable) for 8 epochs. In all cases the cumulative loss continued decreasing, and the validation Weighted-F1 HM continued increasing overall. However, we didn't train it for more epochs due to computational constraints. The training and validation loss function are shown in \cref{fig:p2t-loss}; validation metrics are shown in \cref{fig:p2t-val-metrics}.
+
+The \texttt{fixed} model (without fine-tuning pre-trained layers) achieved a score (\textit{Weighted-F1 HM}) of \textbf{0.48}, the \texttt{refined1} model (with the last pre-trained layer fine-tuneable) achieved a score of \textbf{0.60}, and the \texttt{bottom1} model (with the first pre-trained layer fine-tuneable) achieved a score of \textbf{0.63}.
+
+The fine-tuned models were able to specialize for the task better in terms of the predictive performance. Not only the training loss was able to decline lower, but also the \texttt{f1w\_hm} metric on the validation dataset rose higher over the training epochs.
+This confirms that fine-tuning the last layer of the method helps increase the performance.
+
+\begin{figure}
+    \centering
+    \begin{minipage}[c]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{images/distilbert_loss.png}
+    \end{minipage}
+    \begin{minipage}[c]{0.4\textwidth}
+        \caption{MSE loss values over the training of 8 epochs, on the training and validation datasets.}\label{fig:p2t-loss}
+        \begin{itemize}
+            \item \textbf{training} (grey \csq[HTML]{425066} for the \texttt{fixed} model, rose \csq[HTML]{e52592} for the \texttt{refined1} model),
+            \item \textbf{validation} (blue \csq[HTML]{12b5cb} for the \texttt{fixed} model, orange \csq[HTML]{f9ab00} for the \texttt{refined1} model).
+        \end{itemize}
+        The \texttt{bottom1} model is not included for brevity.
+    \end{minipage}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \begin{subfigure}[t]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{images/distilbert_val_f1w_hm.png}
+        \caption{The harmonic mean of the Weighted-F1 scores of the two (positive, negative) sentiment variables.}
+        \label{fig:p2t-val-metrics-hm}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{images/distilbert_val_f1w_pos.png}
+        \caption{Weighted-F1 score of the positive sentiment variable.}
+        \label{fig:p2t-val-metrics-pos}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.3\textwidth}
+        \includegraphics[width=\textwidth]{images/distilbert_val_f1w_neg.png}
+        \caption{Weighted-F1 score of the negative sentiment variable.}
+        \label{fig:p2t-val-metrics-neg}
+    \end{subfigure}
+    \caption{Three reported metrics for the positive (\cref{fig:p2t-val-metrics-pos}) and negative (\cref{fig:p2t-val-metrics-neg}) sentiment variables evaluated on the validation dataset, and their harmonic mean (\cref{fig:p2t-val-metrics-hm}, the main metric), after each of 8 training epochs.\\
+    Blue \csq[HTML]{12b5cb} corresponds to the \texttt{fixed} model, orange \csq[HTML]{f9ab00} corresponds to the \texttt{refined1} model, and rose \csq[HTML]{e52592} corresponds to the \texttt{bottom1} model.}
+    \label{fig:p2t-val-metrics}
+\end{figure}
+
+Suggested approaches to improve the performance if computational resources were not a bottleneck:
+\begin{itemize}
+    \item Train on a larger dataset. As described at the beginning of the section Transformers, we only consider 15\% of the provided dataset.
+    \item Train for more epochs. As clearly seen from \cref{fig:p2t-val-metrics-hm} (harmonic weighted F1 grows) and \cref{fig:p2t-loss} (loss decreases), continuing the training for longer has a high predisposition for leading to better performance.
+    \item Use a larger transformer model or allow fine-tuning of more layers of the selected model. Here, we opted for DistilBERT, which is a smaller, distilled version of BERT, but options with more layers (requiring more computing resources) have the potential to perform better. However, this approach would mostly make sense if the training reaches the bottleneck given by the complexity of the model.
+\end{itemize}
+
+\setcounter{section}{5}
+\section{Embedding analysis}
+
+In this question, we investigate what effect fine-tuning of the last layer of the pre-trained DistilBERT transformer model has on tweet embeddings. Therefore, we study the embeddings of tweets produced by two models, \texttt{fixed} (with all pre-trained layers fixed), and \texttt{refined1}, with the last pre-trained layer fine-tuned. First, we explain and clarify a few concepts used in this section.
+
+\textbf{Tweet embeddings model.} Given a trained transformer model, we modify it such that it returns the embedding of the first token (\texttt{[CLS]}) of a given tweet. The transformer-based language models are trained such that the embedding of the \texttt{[CLS]} token (i.e. the first token after tokenisation) has information about the sentiment of the whole input sequence, that is why we choose to visualise the embedding of this token. Given a tweet, evaluating the model on the pre-processed and tokenized version of the tweet results in a 768-dimensional embedding of the tweet.
+
+\textbf{Selected tweets: $\bm{1000 + 10}$.} We randomly sampled 1000 tweets from the test set (disjoint from the training set) to use for dimensionality reduction; not more due to computational constraints. For some visualisations in this section, we manually selected an additional set of ten tweets (also distinct from the 1000), which we manually verified are related to Covid-19. The embedding of those ten tweets can be visualised and annotated with the text. These ten tweets' whole (unprocessed and not tokenized) text is shown in \cref{tab:p2t-ten_tweets}.
+
+\begin{table}[]
+    \centering
+    \setlength{\parindent}{-1em}
+    \begin{tabular}{|r|p{16cm}|}
+    \hline
+1 & \negindent @TheMomKind This has happened to a few families...scary stuff... \\
+2 & \negindent Joe Biden presents symptoms that ought to concern everyone. @DrBenChavis @NCPoliticalSpin @ChathCoLineNews @afaduln2 @mobygrapefan @Flwrgirl66x @Laura78703 @MaRobbie @shannondjackson @TulsiGabbard @ChuckRocha @TheBernReport @davidsirota @daviddoel @KyleKulinski @cenkuygur \\
+3 & \negindent Coronavirus: Scientists say anti-parasite drug could kill virus https://t.co/BkRLwU12IR \\
+4 & \negindent In these trying times when so many are testing positive for coronavirus we should have tremendous gratitude that Hillary Clinton still tests negative for president of the United States. \\
+5 & \negindent Study out of New York may change everything we thought we knew about fevers and coronavirus   https://t.co/70yUs5HGNa \\
+6 & \negindent Manchester City are approaching the situation with a \textquotedblleft{}clear, calm head\textquotedblright{}, according to senior sources, and have been laying the ground work for months in the event of a ban from UEFA. A robust legal challenge is expected to be lodged on appeal with CAS.  [@TeleFootball] \\
+7 & \negindent I'm a little disappointed but shit happens \\
+8 & \negindent I have been struggling to breathe with this Coronavirus. But I have been listening non stop to this worship song Unstoppable God by Sanctus Real. It has lifted my soul as Coronavirus attacked my lungs. Where does my help come, my help comes from the Lord. \#conronavirus \#COVID19 https://t.co/OEJrZvTv0J \\
+9 & \negindent 44 migrants on one US deportation flight tested positive for coronavirus https://t.co/YqZDhacOWE \\
+10 & \negindent I can't wait for that day when this pandemic is over.   Hoping for better days!\\
+\hline
+    \end{tabular}
+    \caption{The full unprocessed text of ten selected tweets for visualisation purposes.}
+    \label{tab:p2t-ten_tweets}
+\end{table}
+
+\textbf{Dimensionality reduction functions: PCA, UMAP.} When visualizing the ten selected tweets (\cref{tab:p2t-ten_tweets}), we need to use a dimensionality reduction function trained on a bigger sample set since 10 tweets alone would not be enough to capture the relationships of tweets in the whole test dataset. Therefore, we train the dimensionality reduction functions on the set of 1000 tweets. Further, we argue that the training of dimensionality reduction should be independent from the ten tweets that we later visualize, to avoid bias e.g. when setting the hyperparameters of the dimensionality reduction function. Thus, we opt for the methods PCA and UMAP \cite{umap}, which give us a function that we can apply to new data (as opposed to t-SNE \cite{tsne}, which cannot be applied to new data).
+
+\Cref{fig:transformers_embeddings_diagram} shows the procedure to obtain visualisations of the two sets of selected tweets.
+
+\begin{figure}
+    \centering
+    \includegraphics[width=11cm]{images/transformers_embeddings_diagram.pdf}
+    \caption{Diagram showing how plots visualising tweet embeddings are obtained from three splits of the tweet dataset.}
+    \label{fig:transformers_embeddings_diagram}
+\end{figure}
+
+\textbf{Positive sentiment}. In this section, we show plots where samples are colored by the positive sentiment variable. However, similar results and conclusions can be derived from plotting the negative sentiment variable; we don't include the plots for brevity.
+
+As the first try, we tried to compare the embeddings of the 10 selected tweets, output by the two models \texttt{fixed} and \texttt{refined1}. This is visualized in \cref{fig:p2t-2models-embedding}. However, from inspecting the plots, we conclude that the fine-tuning of the model changes the meanings of the embedding dimensions enough such that combining tweet embeddings produced by the two models in the same embedding space doesn't convey useful information. In other words, the embedding space of the \texttt{refined1} model seems to have a different representation than the embedding space of the \texttt{fixed} model.
+
+\begin{figure}
+    \centering
+    \begin{subfigure}[t]{\textwidth}
+        \hspace*{1.5cm}\includegraphics[height=9cm]{images/transformer_embedding2models_pca_positive.pdf}
+        \caption{}\label{fig:p2t-2models-embedding-pca}
+    \end{subfigure}
+    \begin{subfigure}[t]{\textwidth}
+        \hspace*{1.5cm}\includegraphics[height=9cm]{images/transformer_embedding2models_umap_positive.pdf}
+        \caption{}\label{fig:p2t-2models-embedding-umap}
+    \end{subfigure}
+    \caption{Visualisation of the embeddings of the 10 selected tweets, output by the two models \texttt{fixed}, \texttt{refined1}. The dimensions are reduced to 2D using the same dimensionality reduction function (\cref{fig:p2t-2models-embedding-pca} PCA, \cref{fig:p2t-2models-embedding-umap} UMAP), trained on the 1000 embedding-tweets set output by the \texttt{fixed} model.}
+    \label{fig:p2t-2models-embedding}
+\end{figure}
+
+On our second try, we visualised the embeddings separately for the two models. The result is shown in \cref{fig:p2t-embedding-fixed} (for the \texttt{fixed} model) and \cref{fig:p2t-embedding-refined1} (for the \texttt{refined1} model).
+Finally, we also visualised all 1000 embedding vectors that were used to train the PCA and UMAP. Results are shown in \cref{fig:p2t-embeddings-many}.
+
+The parameters set for UMAP in all visualisations in this section are \texttt{n\_neighbors=30}, \texttt{min\_dist=0.2}.
+
+\begin{figure}
+    \centering
+    \begin{subfigure}[t]{\textwidth}
+        \hspace*{1.5cm}\includegraphics[height=9cm]{images/transformer_embedding_fixed_pca_positive.pdf}
+        \caption{}\label{fig:p2t-embedding-fixed-pca}
+    \end{subfigure}
+    \begin{subfigure}[t]{\textwidth}
+        \hspace*{1.5cm}\includegraphics[height=9cm]{images/transformer_embedding_fixed_umap_positive.pdf}
+        \caption{}\label{fig:p2t-embedding-fixed-umap}
+    \end{subfigure}
+    \caption{Visualisation of the embeddings of the 10 selected tweets, output by the \texttt{fixed} model, using \cref{fig:p2t-embedding-fixed-pca} PCA and \cref{fig:p2t-embedding-fixed-umap} UMAP dimensionality reduction functions trained on the 1000 embedding-tweets set output by the \texttt{fixed} model.}
+    \label{fig:p2t-embedding-fixed}
+\end{figure}
+\begin{figure}
+    \centering
+    \begin{subfigure}[t]{\textwidth}
+        \hspace*{1.5cm}\includegraphics[height=9cm]{images/transformer_embedding_refined1_pca_positive.pdf}
+        \caption{}\label{fig:p2t-embedding-refined1-pca}
+    \end{subfigure}
+    \begin{subfigure}[t]{\textwidth}
+        \hspace*{1.5cm}\includegraphics[height=9cm]{images/transformer_embedding_refined1_umap_positive.pdf}
+        \caption{}\label{fig:p2t-embedding-refined1-umap}
+    \end{subfigure}
+    \caption{Visualisation of the embeddings of the 10 selected tweets, output by the \texttt{refined1} model, using \cref{fig:p2t-embedding-refined1-pca} PCA and \cref{fig:p2t-embedding-refined1-umap} UMAP dimensionality reduction functions trained on the 1000 embedding-tweets set output by the \texttt{refined1} model.}
+    \label{fig:p2t-embedding-refined1}
+\end{figure}
+
+\begin{figure}
+    \centering
+    \begin{subfigure}{0.49\textwidth}
+        \includegraphics[width=\textwidth]{images/transformer_embedding_many_fixed_pca_positive.pdf}
+        \caption{}\label{fig:p2t-embeddings-many-fixed-pca}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.49\textwidth}
+        \includegraphics[width=\textwidth]{images/transformer_embedding_many_fixed_umap_positive.pdf}
+        \caption{}\label{fig:p2t-embeddings-many-fixed-umap}
+    \end{subfigure}
+    \begin{subfigure}{0.49\textwidth}
+        \includegraphics[width=\textwidth]{images/transformer_embedding_many_refined1_pca_positive.pdf}
+        \caption{}\label{fig:p2t-embeddings-many-refined1-pca}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}{0.49\textwidth}
+        \includegraphics[width=\textwidth]{images/transformer_embedding_many_refined1_umap_positive.pdf}
+        \caption{}\label{fig:p2t-embeddings-many-refined1-umap}
+    \end{subfigure}
+    \caption{Visualisation of PCA and UMAP values of the 1000 embeddings that were used to train the dimensionality reduction functions. Results are shown for models \texttt{fixed} (\cref{fig:p2t-embeddings-many-fixed-pca} PCA, \cref{fig:p2t-embeddings-many-fixed-umap} UMAP), \texttt{refined} (\cref{fig:p2t-embeddings-many-refined1-pca} PCA, \cref{fig:p2t-embeddings-many-refined1-umap} UMAP).}
+    \label{fig:p2t-embeddings-many}
+\end{figure}
+
+\textbf{Conclusions.}
+In the scatter plots, we can observe the following: None of the PCA and UMAP plots of the embeddings from the \texttt{fixed} model (i.e. \cref{fig:p2t-embedding-fixed}, \cref{fig:p2t-embeddings-many-fixed-pca}, \cref{fig:p2t-embeddings-many-fixed-umap}) show any clustering related to the positive sentiment, in that tweets of all positive-sentiment values, are distributed relatively uniformly across the embedding space.
+This may be a natural consequence of the fact that these embeddings are produced by a pre-trained model.
+During training for our task (regression of two sentiment values), we only trained the weights of two layers built on top of the tweet embedding. Thus, no weights that affect the embedding were changed during this training, and so the embedding of tweets is exactly as would be output by the original pre-trained model.
+One might still expect the embedding to convey information relevant to sentiment prediction since the used model \texttt{"distilbert-base-uncased-finetuned-sst-2-english"} is pre-trained on the Stanford Sentiment Treebank \cite{socherRecursiveDeepModels2013} corpora. However, apparently, the original problem and the problem in this project are different enough.
+
+However, in scatter plots of embeddings from the \texttt{refined1} model (\cref{fig:p2t-embedding-refined1}, \cref{fig:p2t-embeddings-many-refined1-pca}, \cref{fig:p2t-embeddings-many-refined1-umap}), we see the separation of tweets based on their positive sentiment value, while the only connection between those scatter plots and the positive sentiment variable is that the last pre-trained layer of the \texttt{refined1} model was fine-tuned to predict the positive and negative sentiment variables.
+As a specific example, the $y$-axis of the PCA plot in \cref{fig:p2t-embeddings-many-refined1-pca} is highly correlated with the positive sentiment variable: tweets labelled with high positive sentiment are mostly present at higher $y$ values in the plot.
+Further, in the UMAP in \cref{fig:p2t-embeddings-many-refined1-umap}, tweets with higher positive sentiment values are nicely separated from the low-positive-sentiment tweets, and so even a clustering algorithm on the 2D UMAP would likely lead to better-than-random performance.
+As demonstrated, it suffices to fine-tune the last layer (the ultimate pre-embedding layer) to make the embeddings specialised and convey information about the positive sentiment variable.
+We conclude that fine-tuning the model does result in the embeddings being more specialized for the given task.
+
+Compared to visualising word embeddings in Part 2, Q6, we see that the separation of positive and negative tweets using transformer-based models is visually stronger than the separation of positive and negative words as shown in Part 2, Q6, where the performance of a simple clustering algorithm on the 2D embedding would likely be poor.

@@ -1,8 +1,4 @@
-\section{Preprocessing}
-
-\subsection*{Q1: Preprocessing (2 pt)}
-\textit{After familiarizing yourself with the TweetsCOV19 dataset, explain your data pre-processing steps for the following parts of the project. Provide code snippets for each pre-processing step. Comment on possible challenges posed by using the raw Twitter data, such as irregular capitalization, variable declination of words, spelling mistakes, punctuation, urls, mentions, emojis, abbreviations and others. Describe whether these apply to this corpus, and how you handled them if so.}
-
+\section*{Q1: Preprocessing}
 As a first step in our preprocessing pipeline, we enforced the data types of each column and dropped rows (or tweets) that did not follow such a table schema, or were duplicates. We found that about 126K tweets were duplicates, while about 53K tweets had invalid TweetIDs or invalid indices. Finally, we dropped about 113K tweets that contained the value 'NaN' in any of the columns, as a 'NaN' in a column can be indicative of data corruption for that tweet (as we had a very large dataset, we deemed it appropriate to have this stringent procedure). We thus end up with approximately 382K tweets out of an original 675K.
 
 The dataset has quite a lot of challenges, even after dropping invalid rows as above: indeed, the TweetText column is very unstructured by nature, as it can contain URLs, emojis, user mentions, hashtags, misspellings, abbreviations, numbers, and variations in capitalisation. In order to counter this, we used a combination of regex and string functions to very efficiently strip the tweets of URLs, mentions, numbers, capitalisation, emojis, and to split hashtags into separate words, done in a few seconds. An example of this procedure is shown in Figure \ref{fig:prepr}, and the code snippet to achieve this is shown as well \cref{listing:p1-code1}.
@@ -43,9 +39,7 @@ The column 'UserLocation' is used in Part 3, where we filtered tweets based on l
 Finally, we choose to split our labels into two different columns, one for positive and for negative, as this is the obvious choice in order to use supervised models with two output heads, instead of being boxed into carrying out classification over 25 possible output labels (5*5).
 
 
-\subsection*{Q2: Exploratory data analysis (1 pts)}
-\textit{Perform a short data analysis of the TweetsCOV19 dataset. In particular, what are the most common uni- and bi-grams in the corpus before and after preprocessing? How does this word distribution vary as a function of the sentiment labels? What is the proportion of each sentiment? Think about how best to visualize this and summarize your findings.}
-
+\section*{Q2: Exploratory data analysis}
 The most common unigrams and bigrams after preprocessing are shown in Figure \ref{fig:uni_bi_af}, and the ones before preprocessing are shown in Figure \ref{fig:uni_bi_bef} (after removing invalid rows as explained above). We show the two words in a bigram separated by an underscore, for better visualization in the word cloud. As expected, the observed unigrams and bigrams are worthless before preprocessing.
 
 \begin{figure}
@@ -115,9 +109,7 @@ We show the proportion of each sentiment label as a bubble chart along a grid de
     \label{fig:bubble}
 \end{figure}
 
-\subsection*{Q3: Metric choice (1 pt)}
-\textit{Are the classes balanced? Choose and justify your evaluation metric(s) for the analysis of sentiment performed in the following parts of the project. Provide a code snippet used to produce performance measurements using the chosen metric.}
-
+\section*{Q3: Metric choice}
 First, we introduce our interpretation of the problem. Predicting a value for either positive or negative sentiment is inherently a regression problem since the integer value is ordinal rather than categorical. In other words, the \textit{positive sentiment} value of $3$ semantically lies between the values of $2$ and $4$. The fact that these five categories of values (for both sentiments) are ordered brings the potential for models to perform better. However, in the problem description, we are given the task to solve a classification problem. Hence, we decided for the following approach:
 \begin{enumerate}
     \item We are \textbf{solving a classification problem} as is asked for, in that our models return two integers in the suitable ranges (one for positive and negative sentiment), and during evaluation, we will treat each sentiment variable as categorical, therefore only allowing categorical metrics.
@@ -152,8 +144,7 @@ def f1w_hm(pos_true, pos_pred, neg_true, neg_pred):
 \Cref{listing:p1-metric} shows the primary metric that we call \textit{Weighted-F1 HM} that we will use to evaluate a model's performance on the given classification task, as well as to compare the predictive performance of different models.
 
 
-\subsection*{Q4: Dataset splitting (1 pt)}
-\textit{Split your dataset into a training, validation and test set. Motivate your approach for this, comment on possible evaluation challenges (e.g. label shift over time).}
+\section*{Q4: Dataset splitting}
 
 We choose to split our dataset in the following manner: we reserve 33\% of the dataset for the test set, and keep 67\% of the dataset for training and validation (where validation is typically 20\% of the training set, however this has been varied in our experiments). We also split by randomly shuffling the dataset, as we want the training to be agnostic to the timeframe. Indeed, in Figure \ref{fig:av_pos}, we plot the average of the positive labels in time (sorted timestamps, then averaged over 200 bins), and observe that this average isn't constant: there is a sharp fall towards the middle of the dataset. Thus, if we split our dataset without shuffling, we risk ending up with dataset splits that have different label proportions with respect to each other.
 

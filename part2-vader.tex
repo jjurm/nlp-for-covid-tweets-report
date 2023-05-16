@@ -1,13 +1,13 @@
 \section*{VADER (5 pts)}
 
-\subsection*{Q1: Briefly explain how VADER works (1 pt).}
+\section*{Q1: Workings of VADER}
 
 According to VADER’s repository \cite{vader}, VADER (Valence Aware Dictionary and sEntiment Reasoner) is a rule-based sentiment analysis tool which uses a combination of lexicon-based and rule-based approaches to determine the sentiment polarity of a given text, and is especially designed for analyzing social media texts.
 
 VADER uses a pre-built lexicon of words (validated by human raters) that have associated ‘valence’ scores: for each text, we find the words within that text that belong to the lexicon, sum their valence scores, adjust to VADER’s rules, and normalize to range between -1 and 1. This gives the compound score of the whole text, which we then threshold to get a ternary classification: positive, negative, or neutral.
 
 
-\subsection*{Q2: Provide a code snippet detailing how to use it for this task (2 pts). In light of what you have learned about this method, reflect on pre-processing steps that might be unnecessary when using VADER.}
+\section*{Q2: Code}
 
 Code snippet \cref{listing:p2-code1} shows how we have used VADER for our use case. The lexicon that VADER uses is especially suitable for social media, and thus, there is no need to tokenize tweets and remove stopwords. However, it is still important to preprocess the tweet strings into clean text (by the methods shown in code snippet \cref{listing:p1-code1}).
 
@@ -45,7 +45,7 @@ confusion_matrix(df_tweets['overall_sent_GT'], df_tweets['vader_decision'])
 \end{listing*}
 
 
-\subsection*{Q3: Apply this method to the TweetsCOV19 dataset and comment on the performance obtained (2 pts).}
+\section*{Q3: Application to TweetsCOV19 dataset, Performance}
 
 We convert our ground truth labels into VADER-compatible labels by summing the positive and negative values, and taking the sign of the output. If the value is 0, it is neutral. While this approach is straightforward, it is quite naive (for example, a tweet that is labeled as (5, -5) classified as neutral in the same manner as a tweet labeled as (1, -1)). However, since extreme tweets (whose sentiment is higher than 3 for either positive or negative sentiments) are quite rare in the dataset, and there is no other straightforward heuristic for conversion, we choose this naive solution.
 

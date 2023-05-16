@@ -22,6 +22,7 @@ backend=biber,
 \usepackage[newfloat]{minted}
 \usepackage{stfloats}
 \usepackage{cuted}
+\usepackage{bm}
 
 \captionsetup[listing]{position=top}
 
@@ -34,6 +35,18 @@ backend=biber,
 \displaywidowpenalty=10000
 
 \renewcommand\thesection{Q\arabic{section}}
+
+\NewDocumentCommand{\csq}{om}{%
+  % colored square
+  % #1 = color model (optional)
+  % #2 = color spec
+  \IfNoValueTF{#1}{%
+    \textcolor{#2}{\rule{1.2ex}{1.2ex}}%
+  }{%
+    \textcolor[#1]{#2}{\rule{1.2ex}{1.2ex}}%
+  }%
+}
+\newcommand{\negindent}{\setlength{\parindent}{-1em}\leftskip=1em }
 
 \addbibresource{ML4Healthcare.bib}
 \defbibheading{references}{\section*{\large References}}
